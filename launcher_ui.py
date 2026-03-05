@@ -50,6 +50,9 @@ class LauncherWindow(ctk.CTk):
         self._position_at_cursor()
         self._start_timer()
 
+        # ウィンドウを強制的に前面に出し、フォーカスを奪う
+        self._force_focus()
+
         # 初期化中にFocusOutが発火して自爆するのを防ぐフラグ
         self._ready_to_close = False
         self.after(500, self._enable_close)
@@ -58,6 +61,28 @@ class LauncherWindow(ctk.CTk):
         self.bind("<FocusOut>", lambda e: self._close(check_focus=True))
         # Escで閉じる
         self.bind("<Escape>", lambda e: self._close())
+
+        # キーボード操作対応
+        self.bind("<Up>", self._on_key_up)
+        self.bind("<Down>", self._on_key_down)
+        self.bind("<Return>", self._on_key_enter)
+        for i in range(1, 10):
+            self.bind(str(i), lambda e, idx=i-1: self._launch_app(idx) if idx < len(self._apps) else None)
+
+    def _force_focus(self):
+        """ウィンドウを強制的にフォアグラウンドに持ってくる"""
+        self.lift()
+        self.attributes("-topmost", True)
+        self.focus_force()
+        
+        # Windows APIを使用してさらに強力にフォーカスを奪う
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            # 他のスレッドの入力を自分にアタッチさせる（フォアグラウンド強制の常套手段）
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
 
     def _enable_close(self):
         self._ready_to_close = True
@@ -98,12 +123,12 @@ class LauncherWindow(ctk.CTk):
                 text_color="gray50",
                 wraplength=TOAST_WIDTH - TOAST_PADDING * 2,
             ).pack(padx=TOAST_PADDING, pady=20)
-        else:
+            self._app_buttons = []
             # アプリボタンの一覧
             for i, app in enumerate(self._apps):
                 btn = ctk.CTkButton(
                     main_frame,
-                    text=f"  {app['name']}",
+                    text=f"  {i+1}: {app['name']}",
                     font=ctk.CTkFont(size=14),
                     height=TOAST_BUTTON_HEIGHT,
                     anchor="w",
@@ -114,6 +139,11 @@ class LauncherWindow(ctk.CTk):
                     padx=TOAST_PADDING,
                     pady=(2, 2),
                 )
+                self._app_buttons.append(btn)
+            
+            # デフォルトで最初の項目を選択状態にする
+            self._selected_index = 0
+            self._update_button_selection()
 
         # フッター: タイマー表示
         self._timer_label = ctk.CTkLabel(
@@ -134,6 +164,32 @@ class LauncherWindow(ctk.CTk):
         )
         height = max(height, TOAST_MIN_HEIGHT)
         self.geometry(f"{TOAST_WIDTH}x{height}")
+
+    def _update_button_selection(self):
+        """ボタンの選択状態（見た目）を更新する。"""
+        if not hasattr(self, "_app_buttons"):
+            return
+            
+        for i, btn in enumerate(self._app_buttons):
+            if i == self._selected_index:
+                # 選択中のボタンを目立たせる（ホバー色に近い色にする）
+                btn.configure(border_width=2, border_color=["#3B8ED0", "#1F6AA5"])
+            else:
+                btn.configure(border_width=0)
+
+    def _on_key_up(self, event):
+        if not self._apps: return
+        self._selected_index = (self._selected_index - 1) % len(self._apps)
+        self._update_button_selection()
+
+    def _on_key_down(self, event):
+        if not self._apps: return
+        self._selected_index = (self._selected_index + 1) % len(self._apps)
+        self._update_button_selection()
+
+    def _on_key_enter(self, event):
+        if 0 <= self._selected_index < len(self._apps):
+            self._launch_app(self._selected_index)
 
     def _position_at_cursor(self):
         """マウスカーソルの位置にウィンドウを配置する。"""
