@@ -1,0 +1,13 @@
+{
+    "timer_seconds": 5,
+    "extensions": {
+        ".txt": {
+            "apps": [
+                {
+                    "name": "メモ帳 (Notepad)",
+                    "path": "C:\\Windows\\notepad.exe"
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AppSelecter</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app" class="launcher-container">
+    <header class="launcher-header">
+      <h1 class="logo">AppSelecter</h1>
+      <div id="timerDisplay" class="timer-display"></div>
+    </header>
+
+    <main class="launcher-grid-wrapper">
+      <div id="launcherGrid" class="launcher-grid">
+        <!-- JSでボタンが生成されます -->
+      </div>
+    </main>
+
+    <div id="configOverlay" class="modal-overlay hidden">
+      <div class="modal-content glass">
+        <h2 id="modalTitle">アプリの編集</h2>
+        <div class="input-group">
+          <label for="appName">名前</label>
+          <input type="text" id="appName" placeholder="アプリ名" />
+        </div>
+        <div class="input-group">
+          <label for="appPath">パス / URL</label>
+          <input type="text" id="appPath" placeholder="C:\path\to\app.exe or https://..." />
+        </div>
+        <div class="modal-actions">
+          <button id="cancelBtn" class="btn secondary">キャンセル</button>
+          <button id="saveBtn" class="btn primary">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
