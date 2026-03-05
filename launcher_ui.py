@@ -50,10 +50,17 @@ class LauncherWindow(ctk.CTk):
         self._position_at_cursor()
         self._start_timer()
 
+        # 初期化中にFocusOutが発火して自爆するのを防ぐフラグ
+        self._ready_to_close = False
+        self.after(500, self._enable_close)
+
         # フォーカスが外れたら閉じる
-        self.bind("<FocusOut>", lambda e: self._close())
+        self.bind("<FocusOut>", lambda e: self._close(check_focus=True))
         # Escで閉じる
         self.bind("<Escape>", lambda e: self._close())
+
+    def _enable_close(self):
+        self._ready_to_close = True
 
     def _build_ui(self):
         """UIを構築する。"""
@@ -214,8 +221,12 @@ class LauncherWindow(ctk.CTk):
                 text=f"⏱  {self._remaining}秒後に自動的に閉じます"
             )
 
-    def _close(self, event=None):
+    def _close(self, event=None, check_focus=False):
         """ウィンドウを閉じてアプリケーションを終了する。"""
+        # FocusOut などの場合、起動直後は閉じないようにする
+        if check_focus and not getattr(self, "_ready_to_close", True):
+            return
+            
         # タイマーを確実に止める
         if self._timer_id:
             try:
