@@ -10,7 +10,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['numpy', 'unittest', 'pydoc', 'doctest', 'pdb', 'difflib', 'inspect', 'bz2', 'lzma'],
+    excludes=['numpy', 'unittest'],
     noarchive=False,
     optimize=0,
 )
