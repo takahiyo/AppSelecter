@@ -28,6 +28,8 @@ from settings import (
     add_app_to_extension,
     remove_app_from_extension,
     update_app_in_extension,
+    move_app_up,
+    move_app_down,
     get_timer_seconds,
     set_timer_seconds,
 )
@@ -289,10 +291,23 @@ class SettingsWindow(ctk.CTk):
             btn_frame = ctk.CTkFrame(app_frame, fg_color="transparent")
             btn_frame.grid(row=0, column=2, padx=5)
 
+            # ↑↓ ボタン
+            ctk.CTkButton(
+                btn_frame, text="↑", width=30, 
+                state="normal" if i > 0 else "disabled",
+                command=lambda idx=i: self._on_move_app_up(idx)
+            ).pack(side="left", padx=1)
+            
+            ctk.CTkButton(
+                btn_frame, text="↓", width=30, 
+                state="normal" if i < len(apps) - 1 else "disabled",
+                command=lambda idx=i: self._on_move_app_down(idx)
+            ).pack(side="left", padx=1)
+
             ctk.CTkButton(
                 btn_frame, text="編集", width=50, 
                 command=lambda idx=i: self._on_edit_app(idx)
-            ).pack(side="left", padx=2)
+            ).pack(side="left", padx=(5, 2))
             
             ctk.CTkButton(
                 btn_frame, text="削除", width=50, fg_color="darkred", hover_color="red",
@@ -333,6 +348,16 @@ class SettingsWindow(ctk.CTk):
         save_settings(self._settings)
         self._load_apps()
 
+    def _on_move_app_up(self, index: int):
+        self._settings = move_app_up(self._settings, self._current_ext, index)
+        save_settings(self._settings)
+        self._load_apps()
+
+    def _on_move_app_down(self, index: int):
+        self._settings = move_app_down(self._settings, self._current_ext, index)
+        save_settings(self._settings)
+        self._load_apps()
+
     # ==========================================
     # タイマー・レジストリ
     # ==========================================
@@ -368,7 +393,13 @@ class SettingsWindow(ctk.CTk):
             self._update_registry_ui()
             messagebox.showinfo("成功", f"Windowsに {self._current_ext} を関連付けました。")
         else:
-            messagebox.showerror("エラー", "関連付けに失敗しました。\nアクセスが拒否されたか、レジストリ操作に問題があります。")
+            messagebox.showerror(
+                "エラー", 
+                f"関連付けに失敗しました。\n\n"
+                f"拡張子: {self._current_ext}\n"
+                "原因: アクセスが拒否されたか、システムによってロックされています。\n\n"
+                "※.zip 等の一部の拡張子は、Windowsの設定画面から手動で変更が必要な場合があります。"
+            )
 
     def _on_unregister_click(self):
         if unregister_extension(self._current_ext):

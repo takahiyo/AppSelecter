@@ -184,6 +184,9 @@ class LauncherWindow(ctk.CTk):
 
     def _tick(self):
         """1秒ごとにカウントダウンする。"""
+        if not self.winfo_exists():
+            return
+
         if self._remaining <= 0:
             self._close()
             return
@@ -194,15 +197,27 @@ class LauncherWindow(ctk.CTk):
 
     def _update_timer_display(self):
         """タイマーの残り時間を表示する。"""
-        self._timer_label.configure(
-            text=f"⏱  {self._remaining}秒後に自動的に閉じます"
-        )
+        if self.winfo_exists():
+            self._timer_label.configure(
+                text=f"⏱  {self._remaining}秒後に自動的に閉じます"
+            )
 
-    def _close(self):
+    def _close(self, event=None):
         """ウィンドウを閉じてアプリケーションを終了する。"""
+        # タイマーを確実に止める
         if self._timer_id:
-            self.after_cancel(self._timer_id)
-        self.destroy()
+            try:
+                self.after_cancel(self._timer_id)
+            except Exception:
+                pass
+            self._timer_id = None
+
+        # ウィンドウが存在する場合のみ破棄
+        if self.winfo_exists():
+            try:
+                self.destroy()
+            except Exception:
+                pass
 
 
 def show_launcher(file_path: str):

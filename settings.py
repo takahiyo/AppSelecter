@@ -137,6 +137,24 @@ def update_app_in_extension(
     return settings
 
 
+def move_app_up(settings: dict, ext: str, index: int) -> dict:
+    """アプリの表示順を一つ上げる。"""
+    ext = ext.lower()
+    apps = settings.get("extensions", {}).get(ext, {}).get("apps", [])
+    if 1 <= index < len(apps):
+        apps[index - 1], apps[index] = apps[index], apps[index - 1]
+    return settings
+
+
+def move_app_down(settings: dict, ext: str, index: int) -> dict:
+    """アプリの表示順を一つ下げる。"""
+    ext = ext.lower()
+    apps = settings.get("extensions", {}).get(ext, {}).get("apps", [])
+    if 0 <= index < len(apps) - 1:
+        apps[index], apps[index + 1] = apps[index + 1], apps[index]
+    return settings
+
+
 def get_timer_seconds(settings: dict) -> int:
     """タイマー秒数を取得する（バリデーション済み）。"""
     val = settings.get("timer_seconds", DEFAULT_TIMER_SEC)

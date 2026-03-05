@@ -49,23 +49,35 @@ def register_extension(ext: str) -> bool:
 
     try:
         # 拡張子キーの登録
-        with winreg.CreateKeyEx(
-            winreg.HKEY_CURRENT_USER,
-            rf"Software\Classes\{ext}",
-            0,
-            winreg.KEY_WRITE,
-        ) as key:
-            # 既存のデフォルト値をバックアップ
-            try:
-                old_val, _ = winreg.QueryValueEx(key, "")
-                if old_val and old_val != type_name:
-                    winreg.SetValueEx(
-                        key, "AppSelecter_Backup", 0, winreg.REG_SZ, old_val
-                    )
-            except FileNotFoundError:
-                pass
+        # KEY_ALL_ACCESS を試行し、失敗したら KEY_WRITE
+        access = winreg.KEY_ALL_ACCESS
+        try:
+            with winreg.CreateKeyEx(
+                winreg.HKEY_CURRENT_USER,
+                rf"Software\Classes\{ext}",
+                0,
+                access,
+            ) as key:
+                # 既存のデフォルト値をバックアップ
+                try:
+                    old_val, _ = winreg.QueryValueEx(key, "")
+                    if old_val and old_val != type_name:
+                        winreg.SetValueEx(
+                            key, "AppSelecter_Backup", 0, winreg.REG_SZ, old_val
+                        )
+                except FileNotFoundError:
+                    pass
 
-            winreg.SetValueEx(key, "", 0, winreg.REG_SZ, type_name)
+                winreg.SetValueEx(key, "", 0, winreg.REG_SZ, type_name)
+        except OSError:
+            access = winreg.KEY_WRITE
+            with winreg.CreateKeyEx(
+                winreg.HKEY_CURRENT_USER,
+                rf"Software\Classes\{ext}",
+                0,
+                access,
+            ) as key:
+                winreg.SetValueEx(key, "", 0, winreg.REG_SZ, type_name)
 
         # コマンドの登録
         with winreg.CreateKeyEx(
@@ -81,6 +93,7 @@ def register_extension(ext: str) -> bool:
 
     except OSError as e:
         print(f"[Registry] 登録失敗: {ext} — {e}")
+        # 例外を再送出せず、Falseを返すが、呼び出し側で詳細を拾えるようにする
         return False
 
 
