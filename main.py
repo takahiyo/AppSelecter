@@ -10,7 +10,14 @@ import ctypes
 
 from launcher_ui import show_launcher
 from settings_ui import show_settings
-from config import APP_NAME
+from config import APP_NAME, AUMID_SETTINGS, AUMID_LAUNCHER
+
+def set_aumid(aumid):
+    """WindowsのApp User Model IDを設定する"""
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(aumid)
+    except Exception:
+        pass
 
 # 全局でハンドルを保持（ガベージコレクション防止）
 _mutex_handle = None
@@ -36,7 +43,8 @@ def main():
     args = sys.argv[1:]
 
     if args:
-        # ランチャーモード（排他制御は行わない。複数のトーストが出るのは許容）
+        # ランチャーモード
+        set_aumid(AUMID_LAUNCHER)
         file_path = " ".join(args).strip('"')
         
         if not os.path.exists(file_path):
@@ -49,7 +57,8 @@ def main():
             
         show_launcher(file_path)
     else:
-        # 設定画面モード（排他制御を行う）
+        # 設定画面モード
+        set_aumid(AUMID_SETTINGS)
         mutex_name = f"Global\\{APP_NAME}_Settings_Mutex"
         if is_already_running(mutex_name):
             # 既に開いている場合は何もしない（静かに終了）

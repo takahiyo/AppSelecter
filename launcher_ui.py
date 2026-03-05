@@ -166,7 +166,19 @@ class LauncherWindow(ctk.CTk):
             # ファイルパスを正規化
             resolved_file = os.path.normpath(self._file_path)
             command = [app_path, resolved_file]
-            subprocess.Popen(command, shell=False)
+            
+            # [重要] 仮想デスクトップ/プロセス管理の切り離し
+            # CREATE_NEW_PROCESS_GROUP: 親プロセスのジョブから外す
+            # DETACHED_PROCESS: 親のデスクトップコンテキストから切り離すことを試みる
+            creation_flags = 0
+            if sys.platform == "win32":
+                creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+
+            subprocess.Popen(
+                command, 
+                shell=False,
+                creationflags=creation_flags
+            )
         except Exception as e:
             from tkinter import messagebox
             messagebox.showerror(

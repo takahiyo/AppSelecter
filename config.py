@@ -12,7 +12,13 @@ import os
 # アプリケーション情報
 # =====================================
 APP_NAME = "AppSelecter"
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.1.0"
+
+# Windows App User Model ID (仮想デスクトップ/タスクバー管理用)
+# 設定画面用とランチャー（トースト）用で分離することで
+# Windowsに別のアプリとして認識させ、デスクトップの独立性を高める
+AUMID_SETTINGS = f"Takahiyo.AppSelecter.Settings.{APP_VERSION}"
+AUMID_LAUNCHER = f"Takahiyo.AppSelecter.Launcher.{APP_VERSION}"
 
 # =====================================
 # タイマー設定
