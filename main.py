@@ -45,7 +45,9 @@ def main():
     if args:
         # ランチャーモード
         set_aumid(AUMID_LAUNCHER)
-        file_path = " ".join(args).strip('"')
+        # 引数を結合し、前後にある引用符を確実に削除。
+        # Windowsの関連付けから渡されるパスを正しく扱う。
+        file_path = " ".join(args).strip().strip('"')
         
         if not os.path.exists(file_path):
             import tkinter.messagebox as messagebox
