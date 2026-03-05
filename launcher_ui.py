@@ -123,6 +123,7 @@ class LauncherWindow(ctk.CTk):
                 text_color="gray50",
                 wraplength=TOAST_WIDTH - TOAST_PADDING * 2,
             ).pack(padx=TOAST_PADDING, pady=20)
+        else:
             self._app_buttons = []
             # アプリボタンの一覧
             for i, app in enumerate(self._apps):
