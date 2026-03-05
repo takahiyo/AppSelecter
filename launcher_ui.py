@@ -212,9 +212,10 @@ class LauncherWindow(ctk.CTk):
                 pass
             self._timer_id = None
 
-        # ウィンドウが存在する場合のみ破棄
+        # Tclインタープリタを停止させてから破棄
         if self.winfo_exists():
             try:
+                self.quit()  # mainloop を安全に抜ける
                 self.destroy()
             except Exception:
                 pass
@@ -222,5 +223,10 @@ class LauncherWindow(ctk.CTk):
 
 def show_launcher(file_path: str):
     """トースト風ランチャーを表示する。"""
-    app = LauncherWindow(file_path)
-    app.mainloop()
+    try:
+        app = LauncherWindow(file_path)
+        if app.winfo_exists():
+            app.mainloop()
+    except Exception as e:
+        # 稀に発生する初期化中の破棄エラー(TclError)を無視して静かに終了
+        print(f"[Launcher] 終了時のエラーを抑制しました: {e}")

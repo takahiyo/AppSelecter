@@ -6,10 +6,26 @@ AppSelecter — エントリーポイント
 
 import sys
 import os
+import ctypes
 
 from launcher_ui import show_launcher
 from settings_ui import show_settings
 from config import APP_NAME
+
+# 全局でハンドルを保持（ガベージコレクション防止）
+_mutex_handle = None
+
+def is_already_running(mutex_name):
+    """
+    WindowsのMutexを使用して、既に同一名のプロセスが動いているかチェックする。
+    """
+    global _mutex_handle
+    kernel32 = ctypes.windll.kernel32
+    # Mutexを作成
+    _mutex_handle = kernel32.CreateMutexW(None, False, mutex_name)
+    last_error = kernel32.GetLastError()
+    # 183 = ERROR_ALREADY_EXISTS
+    return last_error == 183
 
 def main():
     """
@@ -17,13 +33,10 @@ def main():
     - 引数あり: 指定されたファイルパスの拡張子に対応するランチャーUIを起動
     - 引数なし: 設定UIを起動
     """
-    # sys.argv[0] はスクリプト名または exe名
     args = sys.argv[1:]
 
-    # 引数が複数渡された場合（パスにスペースが含まれている場合など）
-    # 通常、Windowsの関連付けからは1つの引数として "%1" で渡される。
     if args:
-        # 稀に分割されて渡されるケースを考慮し結合
+        # ランチャーモード（排他制御は行わない。複数のトーストが出るのは許容）
         file_path = " ".join(args).strip('"')
         
         if not os.path.exists(file_path):
@@ -36,7 +49,13 @@ def main():
             
         show_launcher(file_path)
     else:
-        # 引数なしは設定画面
+        # 設定画面モード（排他制御を行う）
+        mutex_name = f"Global\\{APP_NAME}_Settings_Mutex"
+        if is_already_running(mutex_name):
+            # 既に開いている場合は何もしない（静かに終了）
+            # 本当はウィンドウを前面に出したいが、onefile環境ではハンドル取得が複雑なため終了のみ
+            return
+            
         show_settings()
 
 
