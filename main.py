@@ -9,11 +9,16 @@ import os
 import ctypes
 import traceback
 import datetime
+import logging
 
 # =========================================================
 # デバッグログ出力の設定
 # =========================================================
+_log_file_handle = None  # ファイルハンドルを保持（GC防止）
+
 def setup_logging():
+    """標準出力・標準エラー出力をログファイルにリダイレクトする。"""
+    global _log_file_handle
     # 開発時とexe化時でログファイルの出力先を統一
     if getattr(sys, 'frozen', False):
         base_dir = os.path.dirname(sys.executable)
@@ -24,16 +29,48 @@ def setup_logging():
     
     # 標準出力・標準エラー出力をファイルにリダイレクト
     try:
-        log_file = open(log_path, "a", encoding="utf-8")
-        sys.stdout = log_file
-        sys.stderr = log_file
+        _log_file_handle = open(log_path, "a", encoding="utf-8")
+        sys.stdout = _log_file_handle
+        sys.stderr = _log_file_handle
         print(f"\n--- AppSelecter Launched at {datetime.datetime.now()} ---")
         print(f"sys.argv: {sys.argv}")
+        sys.stdout.flush()
     except Exception:
         pass
 
-# 以前はここで setup_logging() を呼んでいたが、起動高速化のため
-# 各モードの分岐先で必要に応じて呼ぶように変更
+
+def setup_debug_logger() -> logging.Logger:
+    """launcher_ui 向けの詳細デバッグロガーを構成して返す。
+    
+    ランチャーモード（拡張子紐づけ起動）は速度優先のため stdout リダイレクトは
+    行わないが、問題切り分け用に専用のファイルロガーを用意する。
+    """
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    debug_log_path = os.path.join(base_dir, "AppSelecter_Debug.log")
+
+    logger = logging.getLogger("AppSelecter")
+    logger.setLevel(logging.DEBUG)
+
+    # 既にハンドラがあれば再追加しない
+    if not logger.handlers:
+        fh = logging.FileHandler(debug_log_path, encoding="utf-8", mode="a")
+        fh.setLevel(logging.DEBUG)
+        fmt = logging.Formatter(
+            "%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        fh.setFormatter(fmt)
+        logger.addHandler(fh)
+
+    logger.info("=" * 60)
+    logger.info("AppSelecter Launcher started")
+    logger.info(f"sys.argv: {sys.argv}")
+    logger.info(f"PID: {os.getpid()}")
+    return logger
 
 # [BEFORE] 
 # from launcher_ui import show_launcher
@@ -93,24 +130,20 @@ def _main_logic():
         # これにより、Windows 11 の仮想デスクトップでの「同一アプリの引き寄せ」を防ぐ。
         unique_aumid = f"{AUMID_LAUNCHER}.PID.{os.getpid()}"
         set_aumid(unique_aumid)
+
+        # デバッグロガーの初期化（ファイル出力のみ、stdout はリダイレクトしない）
+        logger = setup_debug_logger()
+
         # 引数を結合し、前後にある引用符を確実に削除。
         # Windowsの関連付けから渡されるパスを正しく扱う。
         file_path = " ".join(args).strip().strip('"')
+        logger.info(f"Resolved file_path: {file_path}")
         
-        print(f"Resolved file_path: {file_path}")
-        
-        print(f"Resolved file_path: {file_path}")
-        
-        # [BEFORE] 以前はここで os.path.exists チェックを行っていたが、
-        # ディスクI/Oによる僅かな遅延を避けるため launcher_ui 側へ寄せる
-        
-        print("Starting launcher_ui")
-        # [BEFORE]
-        # show_launcher(file_path)
-        # [AFTER]
         # 遅延インポートによる起動高速化
+        logger.info("Importing launcher_ui")
         from launcher_ui import show_launcher
-        show_launcher(file_path)
+        logger.info("Calling show_launcher")
+        show_launcher(file_path, logger=logger)
     else:
         # 設定画面モード
         setup_logging()  # 設定画面は速度優先ではないためログを有効化
