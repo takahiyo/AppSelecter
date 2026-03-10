@@ -35,9 +35,13 @@ def setup_logging():
 # 起動直後にロギング設定を開始
 setup_logging()
 
+# [BEFORE] 
+# from launcher_ui import show_launcher
+# from settings_ui import show_settings
+# [AFTER]
+# show_launcher と show_settings のインポートを _main_logic 内へ移動（遅延インポート）による軽量化
+
 try:
-    from launcher_ui import show_launcher
-    from settings_ui import show_settings
     from config import APP_NAME, AUMID_SETTINGS, AUMID_LAUNCHER
 except Exception as e:
     print(f"Import Error: {traceback.format_exc()}")
@@ -105,6 +109,11 @@ def _main_logic():
             return
             
         print("Starting launcher_ui")
+        # [BEFORE]
+        # show_launcher(file_path)
+        # [AFTER]
+        # 遅延インポートによる起動高速化
+        from launcher_ui import show_launcher
         show_launcher(file_path)
     else:
         # 設定画面モード
@@ -117,6 +126,11 @@ def _main_logic():
             return
             
         print("Starting settings_ui")
+        # [BEFORE]
+        # show_settings()
+        # [AFTER]
+        # 遅延インポートによるメモリ節約
+        from settings_ui import show_settings
         show_settings()
 
 

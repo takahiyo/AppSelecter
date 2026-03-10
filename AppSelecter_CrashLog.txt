@@ -1,0 +1,5 @@
+
+--- AppSelecter Launched at 2026-03-10 11:54:38.502335 ---
+sys.argv: ['main.py', 'test.txt']
+Resolved file_path: test.txt
+Starting launcher_ui

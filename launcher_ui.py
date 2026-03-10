@@ -55,7 +55,11 @@ class LauncherWindow(ctk.CTk):
 
         # 初期化中にFocusOutが発火して自爆するのを防ぐフラグ
         self._ready_to_close = False
-        self.after(500, self._enable_close)
+        # [BEFORE]
+        # self.after(500, self._enable_close)
+        # [AFTER]
+        # ガード時間を短縮して応答性を向上 (500ms -> 200ms)
+        self.after(200, self._enable_close)
 
         # フォーカスが外れたら閉じる
         self.bind("<FocusOut>", lambda e: self._close(check_focus=True))
