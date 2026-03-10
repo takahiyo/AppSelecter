@@ -1,19 +1,16 @@
-2026-03-10 21:09:30.727 [INFO] ============================================================
-2026-03-10 21:09:30.728 [INFO] AppSelecter Launcher started
-2026-03-10 21:09:30.729 [INFO] sys.argv: ['E:\\Local_Storage\\GitHub\\AppSelecter\\AppSelecter\\dist\\AppSelecter\\AppSelecter.exe', 'test.txt']
-2026-03-10 21:09:30.729 [INFO] PID: 46548
-2026-03-10 21:09:30.729 [INFO] Resolved file_path: test.txt
-2026-03-10 21:09:30.729 [INFO] Importing launcher_ui
-2026-03-10 21:09:30.771 [INFO] Calling show_launcher
-2026-03-10 21:09:30.771 [INFO] show_launcher called with file_path=test.txt
-2026-03-10 21:09:30.942 [INFO] LauncherWindow.__init__ start
-2026-03-10 21:09:30.967 [INFO] ext=.txt, apps=0, timer=5s
-2026-03-10 21:09:31.279 [ERROR] Exception in show_launcher: bad event type or keysym "ISO_Left_Tab"
-Traceback (most recent call last):
-  File "launcher_ui.py", line 481, in show_launcher
-    app = LauncherWindow(file_path, logger=log)
-  File "launcher_ui.py", line 109, in __init__
-    self.bind("<ISO_Left_Tab>", lambda e: self._on_key_tab(e, reverse=True))
-  File "tkinter\__init__.py", line 1421, in bind
-  File "tkinter\__init__.py", line 1375, in _bind
-_tkinter.TclError: bad event type or keysym "ISO_Left_Tab"
+2026-03-10 21:20:37.713 [INFO] ============================================================
+2026-03-10 21:20:37.713 [INFO] AppSelecter Launcher started
+2026-03-10 21:20:37.713 [INFO] sys.argv: ['E:\\Local_Storage\\GitHub\\AppSelecter\\AppSelecter\\dist\\AppSelecter\\AppSelecter.exe', 'test.txt']
+2026-03-10 21:20:37.713 [INFO] PID: 46004
+2026-03-10 21:20:37.714 [INFO] Resolved file_path: test.txt
+2026-03-10 21:20:37.714 [INFO] Importing launcher_ui
+2026-03-10 21:20:37.759 [INFO] Calling show_launcher
+2026-03-10 21:20:37.759 [INFO] show_launcher called with file_path=test.txt
+2026-03-10 21:20:38.011 [INFO] LauncherWindow.__init__ start
+2026-03-10 21:20:38.056 [INFO] ext=.txt, apps=0, timer=5s
+2026-03-10 21:20:38.578 [INFO] LauncherWindow.__init__ complete
+2026-03-10 21:20:38.578 [INFO] Entering mainloop
+2026-03-10 21:20:38.578 [DEBUG] FocusIn #1 (age=522ms)
+2026-03-10 21:20:40.079 [INFO] _enable_close called (age=2023ms, focus_in_count=1)
+2026-03-10 21:20:43.681 [INFO] [Launcher] Closing UI. Reason: Timer Expired, age=5625ms, focus_in_count=1, user_interacted=False
+2026-03-10 21:20:43.730 [INFO] mainloop exited

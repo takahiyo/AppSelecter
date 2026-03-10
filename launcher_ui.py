@@ -106,7 +106,6 @@ class LauncherWindow(tk.Tk):
         self.bind("<Return>", self._on_key_enter)
         self.bind("<space>", self._on_key_space)
         self.bind("<Tab>", self._on_key_tab)
-        self.bind("<ISO_Left_Tab>", lambda e: self._on_key_tab(e, reverse=True))
         self.bind("<Shift-Tab>", lambda e: self._on_key_tab(e, reverse=True))
         for i in range(1, 10):
             self.bind(str(i), lambda e, idx=i - 1: self._launch_app(idx) if idx < len(self._apps) else None)
