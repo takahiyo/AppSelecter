@@ -64,11 +64,9 @@ class LauncherWindow(tk.Tk):
 
         # 初期化中にFocusOutが発火して自爆するのを防ぐフラグ
         self._ready_to_close = False
-        # [BEFORE]
-        # self.after(500, self._enable_close)
-        # [AFTER]
-        # ガード時間をさらに短縮 (200ms -> 100ms)
-        self.after(100, self._enable_close)
+        # [BEFORE] ガード時間が短すぎて起動直後に自爆していた (100ms)
+        # [AFTER] 安定のためガード時間を 500ms に戻す（起動速度には影響なし）
+        self.after(500, self._enable_close)
 
         # フォーカスが外れたら閉じる
         self.bind("<FocusOut>", lambda e: self._close(check_focus=True))
@@ -333,10 +331,13 @@ class LauncherWindow(tk.Tk):
     def _close(self, event=None, check_focus=False):
         """ウィンドウを閉じてアプリケーションを終了する。"""
         # FocusOut などの場合、起動直後は閉じないようにする
-        if check_focus and not getattr(self, "_ready_to_close", True):
-            return
-            
-        # タイマーを確実に止める
+        if check_focus:
+            if not getattr(self, "_ready_to_close", True):
+                return
+            # 真にフォーカスを失ったか念のため再確認
+            # (サブウィジェット間でのフォーカス移動などによる誤爆防止)
+            if self.focus_get() is not None:
+                return
         if self._timer_id:
             try:
                 self.after_cancel(self._timer_id)
