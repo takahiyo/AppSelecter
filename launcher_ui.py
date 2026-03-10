@@ -70,6 +70,8 @@ class LauncherWindow(ctk.CTk):
         self.bind("<Up>", self._on_key_up)
         self.bind("<Down>", self._on_key_down)
         self.bind("<Return>", self._on_key_enter)
+        self.bind("<Tab>", self._on_key_tab)
+        self.bind("<Shift-Tab>", lambda e: self._on_key_tab(e, reverse=True))
         for i in range(1, 10):
             self.bind(str(i), lambda e, idx=i-1: self._launch_app(idx) if idx < len(self._apps) else None)
 
@@ -161,16 +163,16 @@ class LauncherWindow(ctk.CTk):
         )
         self._timer_label.pack(pady=(8, TOAST_PADDING))
 
-        # ウィンドウサイズの計算
+        # ウィンドウサイズの事前計算（update_idletasks を待たずに配置するため）
         num_buttons = max(len(self._apps), 1)
-        height = (
+        self._calculated_height = (
             TOAST_PADDING * 2    # 上下パディング
             + 55                 # ヘッダー
             + num_buttons * (TOAST_BUTTON_HEIGHT + 4)  # ボタン群
             + 40                 # フッター
         )
-        height = max(height, TOAST_MIN_HEIGHT)
-        self.geometry(f"{TOAST_WIDTH}x{height}")
+        self._calculated_height = max(self._calculated_height, TOAST_MIN_HEIGHT)
+        self.geometry(f"{TOAST_WIDTH}x{self._calculated_height}")
 
     def _update_button_selection(self):
         """ボタンの選択状態（見た目）を更新する。"""
@@ -198,9 +200,21 @@ class LauncherWindow(ctk.CTk):
         if 0 <= self._selected_index < len(self._apps):
             self._launch_app(self._selected_index)
 
+    def _on_key_tab(self, event, reverse=False):
+        """Tabキーによる項目移動。"""
+        if not self._apps: return
+        
+        step = -1 if reverse else 1
+        self._selected_index = (self._selected_index + step) % len(self._apps)
+        self._update_button_selection()
+        # フォーカス移動のデフォルト挙動を抑制
+        return "break"
+
     def _position_at_cursor(self):
         """マウスカーソルの位置にウィンドウを配置する。"""
-        self.update_idletasks()
+        # 高速化のため update_idletasks() を避け、事前計算したサイズを使用する
+        # self.update_idletasks()
+        
         # マウスカーソルの座標を取得
         x = self.winfo_pointerx()
         y = self.winfo_pointery()
@@ -208,8 +222,8 @@ class LauncherWindow(ctk.CTk):
         # 画面端からはみ出さないよう調整
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
-        win_w = self.winfo_width()
-        win_h = self.winfo_height()
+        win_w = TOAST_WIDTH
+        win_h = self._calculated_height
 
         if x + win_w > screen_w:
             x = screen_w - win_w - 10

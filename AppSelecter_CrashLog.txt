@@ -3,3 +3,8 @@
 sys.argv: ['main.py', 'test.txt']
 Resolved file_path: test.txt
 Starting launcher_ui
+
+--- AppSelecter Launched at 2026-03-10 17:21:43.470124 ---
+sys.argv: ['main.py', 'test.txt']
+Resolved file_path: test.txt
+Starting launcher_ui
