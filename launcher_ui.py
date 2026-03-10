@@ -42,6 +42,10 @@ class LauncherWindow(tk.Tk):
         self._remaining = self._timer_sec
         self._timer_id = None
 
+        # 起動直後の一時的な FocusOut では閉じないようにする
+        self._ready_to_close = False
+        self._once_focused = False
+
         # 起動高速化のため main.py から移動してきたファイルチェック
         if not os.path.exists(self._file_path):
             self._show_error_and_exit(f"ファイルが見つかりません:\n{self._file_path}")
@@ -49,8 +53,8 @@ class LauncherWindow(tk.Tk):
 
         # ウィンドウ設定
         self.title(f"{APP_NAME} — {self._ext}")
-        self.overrideredirect(True)      # タイトルバーなし
-        self.attributes("-topmost", True)  # 最前面
+        self.overrideredirect(True)
+        self.attributes("-topmost", True)
         self.configure(bg=self.NORMAL_BG, bd=1, highlightthickness=1, highlightbackground=self.BORDER_COLOR)
 
         self._build_ui()
@@ -62,18 +66,11 @@ class LauncherWindow(tk.Tk):
         self._force_focus()
         self.after(0, self._start_timer)
 
-        # 初期化中にFocusOutが発火して自爆するのを防ぐフラグ
-        self._ready_to_close = False
-        self._once_focused = False # 一度でもフォーカスを得たか
-        
-        # [BEFORE] 以前のガード (500ms)
-        # [AFTER] 1000ms の猶予を与え、かつ一度もフォーカスを得ていない場合は閉じないようにする
+        # 起動直後は Explorer や OS 側のフォーカス遷移が落ち着くまで FocusOut を無視する
         self.after(1000, self._enable_close)
 
-        # フォーカスが外れたら閉じる (FocusIn でフラグを立ててから有効にする)
         self.bind("<FocusIn>", self._on_focus_in)
-        self.bind("<FocusOut>", lambda e: self._close(check_focus=True))
-        # Escで閉じる
+        self.bind("<FocusOut>", self._on_focus_out)
         self.bind("<Escape>", lambda e: self._close(reason="Escape Key"))
 
         # キーボード操作対応
@@ -85,20 +82,18 @@ class LauncherWindow(tk.Tk):
         self.bind("<ISO_Left_Tab>", lambda e: self._on_key_tab(e, reverse=True))
         self.bind("<Shift-Tab>", lambda e: self._on_key_tab(e, reverse=True))
         for i in range(1, 10):
-            self.bind(str(i), lambda e, idx=i-1: self._launch_app(idx) if idx < len(self._apps) else None)
+            self.bind(str(i), lambda e, idx=i - 1: self._launch_app(idx) if idx < len(self._apps) else None)
 
     def _force_focus(self, count=0):
         """ウィンドウを強制的にフォアグラウンドに持ってくる（複数回試行）"""
         self.lift()
         self.attributes("-topmost", True)
         self.focus_force()
-        
+
         try:
             import ctypes
-            # GetParent ではなく自身または適切な親の HWND を取得
-            hwnd = ctypes.windll.user32.GetForegroundWindow() # ダミー呼び出しでキャッシュ
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
             hwnd = self.winfo_id()
-            # Windows APIを使用してフォアグラウンドを要求
             ctypes.windll.user32.SetForegroundWindow(hwnd)
         except Exception:
             pass
@@ -116,9 +111,16 @@ class LauncherWindow(tk.Tk):
     def _enable_close(self):
         self._ready_to_close = True
 
-    def _on_focus_in(self, event):
-        """フォーカスを得た際の処理"""
+    def _on_focus_in(self, event=None):
+        """一度でもフォーカスを得たことを記録する。"""
         self._once_focused = True
+
+    def _on_focus_out(self, event=None):
+        """起動直後の一時的なフォーカス喪失では閉じない。"""
+        if not self._ready_to_close:
+            return
+
+        self.after(120, lambda: self._close(check_focus=True, reason="Focus Lost"))
 
     def _build_ui(self):
         """軽量なTkウィジェットだけでUIを構築する。"""
@@ -246,19 +248,13 @@ class LauncherWindow(tk.Tk):
         step = -1 if reverse else 1
         self._selected_index = (self._selected_index + step) % len(self._apps)
         self._update_button_selection()
-        # フォーカス移動のデフォルト挙動を抑制
         return "break"
 
     def _position_at_cursor(self):
         """マウスカーソルの位置にウィンドウを配置する。"""
-        # 高速化のため update_idletasks() を避け、事前計算したサイズを使用する
-        # self.update_idletasks()
-        
-        # マウスカーソルの座標を取得
         x = self.winfo_pointerx()
         y = self.winfo_pointery()
 
-        # 画面端からはみ出さないよう調整
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
         win_w = TOAST_WIDTH
@@ -277,7 +273,6 @@ class LauncherWindow(tk.Tk):
         app_path = app["path"]
 
         if not os.path.exists(app_path):
-            # アプリが見つからない場合のフォールバック
             messagebox.showerror(
                 APP_NAME,
                 f"アプリが見つかりません:\n{app_path}"
@@ -285,19 +280,15 @@ class LauncherWindow(tk.Tk):
             return
 
         try:
-            # ファイルパスを正規化
             resolved_file = os.path.normpath(self._file_path)
             command = [app_path, resolved_file]
-            
-            # [重要] 仮想デスクトップ/プロセス管理の切り離し
-            # CREATE_NEW_PROCESS_GROUP: 親プロセスのジョブから外す
-            # DETACHED_PROCESS: 親のデスクトップコンテキストから切り離すことを試みる
+
             creation_flags = 0
             if sys.platform == "win32":
                 creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
 
             subprocess.Popen(
-                command, 
+                command,
                 shell=False,
                 creationflags=creation_flags
             )
@@ -308,7 +299,7 @@ class LauncherWindow(tk.Tk):
             )
             return
 
-        self._close()
+        self._close(reason="App Launched")
 
     def _start_timer(self):
         """オートクローズタイマーを開始する。"""
@@ -337,23 +328,16 @@ class LauncherWindow(tk.Tk):
 
     def _close(self, event=None, check_focus=False, reason="Unknown"):
         """ウィンドウを閉じてアプリケーションを終了する。"""
-        # FocusOut などの場合、起動直後または一度もフォーカスを得ていない場合は閉じない
         if check_focus:
-            # ガード期間中か
-            if not getattr(self, "_ready_to_close", True):
+            if not self._ready_to_close:
                 return
-            # 一度もフォーカスを得ていないか（OSの初期化中イベントの誤爆防止）
-            if not getattr(self, "_once_focused", False):
+            if not self._once_focused:
                 return
-            # 真にフォーカスを失ったか念のため再確認 (サブウィジェット間移動の防止)
             if self.focus_get() is not None:
                 return
-            reason = "Focus Lost"
 
-        # 終了理由をログ出力（デバッグ用）
         print(f"[Launcher] Closing UI. Reason: {reason}")
-            
-        # タイマーを確実に止める
+
         if self._timer_id:
             try:
                 self.after_cancel(self._timer_id)
@@ -361,10 +345,9 @@ class LauncherWindow(tk.Tk):
                 pass
             self._timer_id = None
 
-        # Tclインタープリタを停止させてから破棄
         if self.winfo_exists():
             try:
-                self.quit()  # mainloop を安全に抜ける
+                self.quit()
                 self.destroy()
             except Exception:
                 pass
@@ -377,5 +360,4 @@ def show_launcher(file_path: str):
         if app.winfo_exists():
             app.mainloop()
     except Exception as e:
-        # 稀に発生する初期化中の破棄エラー(TclError)を無視して静かに終了
         print(f"[Launcher] 終了時のエラーを抑制しました: {e}")
