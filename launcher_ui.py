@@ -8,7 +8,8 @@ AppSelecter — トースト風セレクターUI
 import subprocess
 import sys
 import os
-import customtkinter as ctk
+import tkinter as tk
+from tkinter import messagebox
 
 from config import (
     APP_NAME,
@@ -16,14 +17,19 @@ from config import (
     TOAST_MIN_HEIGHT,
     TOAST_BUTTON_HEIGHT,
     TOAST_PADDING,
-    UI_THEME,
-    UI_COLOR_THEME,
 )
 from settings import load_settings, get_apps_for_extension, get_timer_seconds
 
 
-class LauncherWindow(ctk.CTk):
-    """拡張子に紐づいたアプリ選択トースト"""
+class LauncherWindow(tk.Tk):
+    """拡張子に紐づいた軽量アプリ選択ランチャー"""
+
+    NORMAL_BG = "#1f1f1f"
+    NORMAL_FG = "#f4f4f4"
+    MUTED_FG = "#b0b0b0"
+    SELECTED_BG = "#2d5cff"
+    SELECTED_FG = "#ffffff"
+    BORDER_COLOR = "#3a3a3a"
 
     def __init__(self, file_path: str):
         super().__init__()
@@ -41,22 +47,20 @@ class LauncherWindow(ctk.CTk):
             self._show_error_and_exit(f"ファイルが見つかりません:\n{self._file_path}")
             return
 
-        # テーマ設定
-        ctk.set_appearance_mode(UI_THEME)
-        ctk.set_default_color_theme(UI_COLOR_THEME)
-
         # ウィンドウ設定
         self.title(f"{APP_NAME} — {self._ext}")
         self.overrideredirect(True)      # タイトルバーなし
         self.attributes("-topmost", True)  # 最前面
-        self.attributes("-alpha", 0.97)    # わずかな透過
+        self.configure(bg=self.NORMAL_BG, bd=1, highlightthickness=1, highlightbackground=self.BORDER_COLOR)
 
         self._build_ui()
         self._position_at_cursor()
-        self._start_timer()
 
-        # ウィンドウを強制的に前面に出し、フォーカスを奪う
+        # まず可視化とフォーカス取得を優先し、その後タイマーを開始する
+        self.deiconify()
+        self.update()
         self._force_focus()
+        self.after(0, self._start_timer)
 
         # 初期化中にFocusOutが発火して自爆するのを防ぐフラグ
         self._ready_to_close = False
@@ -75,7 +79,9 @@ class LauncherWindow(ctk.CTk):
         self.bind("<Up>", self._on_key_up)
         self.bind("<Down>", self._on_key_down)
         self.bind("<Return>", self._on_key_enter)
+        self.bind("<space>", self._on_key_space)
         self.bind("<Tab>", self._on_key_tab)
+        self.bind("<ISO_Left_Tab>", lambda e: self._on_key_tab(e, reverse=True))
         self.bind("<Shift-Tab>", lambda e: self._on_key_tab(e, reverse=True))
         for i in range(1, 10):
             self.bind(str(i), lambda e, idx=i-1: self._launch_app(idx) if idx < len(self._apps) else None)
@@ -96,13 +102,12 @@ class LauncherWindow(ctk.CTk):
         except Exception:
             pass
 
-        # 関連付け起動時はExplorerにフォーカスを奪われやすいため、数回繰り返す
-        if count < 5:
-            self.after(100, lambda: self._force_focus(count + 1))
+        # 関連付け起動時はExplorerにフォーカスを奪われやすいため、短い間隔で数回繰り返す
+        if count < 8:
+            self.after(50, lambda: self._force_focus(count + 1))
 
     def _show_error_and_exit(self, message):
         """エラーを表示して終了する"""
-        from tkinter import messagebox
         messagebox.showerror(APP_NAME, message)
         self.destroy()
         sys.exit(1)
@@ -111,80 +116,84 @@ class LauncherWindow(ctk.CTk):
         self._ready_to_close = True
 
     def _build_ui(self):
-        """UIを構築する。"""
-        # メインフレーム（角丸風の見た目）
-        main_frame = ctk.CTkFrame(self, corner_radius=16)
-        main_frame.pack(fill="both", expand=True, padx=2, pady=2)
-
-        # ヘッダー: 拡張子情報とファイル名
-        header_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        header_frame.pack(fill="x", padx=TOAST_PADDING, pady=(TOAST_PADDING, 8))
+        """軽量なTkウィジェットだけでUIを構築する。"""
+        main_frame = tk.Frame(self, bg=self.NORMAL_BG)
+        main_frame.pack(fill="both", expand=True, padx=1, pady=1)
 
         file_name = os.path.basename(self._file_path)
-        ctk.CTkLabel(
-            header_frame,
-            text=f"📂 {file_name}",
-            font=ctk.CTkFont(size=13, weight="bold"),
+        header_text = f"{file_name} ({self._ext})"
+        tk.Label(
+            main_frame,
+            text=header_text,
+            bg=self.NORMAL_BG,
+            fg=self.NORMAL_FG,
             anchor="w",
-        ).pack(fill="x")
+            justify="left",
+            font=("Yu Gothic UI", 11, "bold"),
+        ).pack(fill="x", padx=TOAST_PADDING, pady=(TOAST_PADDING, 4))
 
-        ctk.CTkLabel(
-            header_frame,
-            text=f"拡張子: {self._ext}  —  アプリを選択してください",
-            font=ctk.CTkFont(size=11),
-            text_color="gray60",
+        tk.Label(
+            main_frame,
+            text="Tab / ↑↓ で選択、Enter / Space / 数字で実行",
+            bg=self.NORMAL_BG,
+            fg=self.MUTED_FG,
             anchor="w",
-        ).pack(fill="x")
+            justify="left",
+            font=("Yu Gothic UI", 9),
+        ).pack(fill="x", padx=TOAST_PADDING, pady=(0, 8))
 
-        # アプリが登録されていない場合
         if not self._apps:
-            ctk.CTkLabel(
+            tk.Label(
                 main_frame,
-                text="この拡張子にアプリが登録されていません。\n"
-                     "AppSelecter.exe を直接起動して設定してください。",
-                font=ctk.CTkFont(size=12),
-                text_color="gray50",
+                text="この拡張子にアプリが登録されていません。\nAppSelecter.exe を直接起動して設定してください。",
+                bg=self.NORMAL_BG,
+                fg=self.MUTED_FG,
+                justify="left",
                 wraplength=TOAST_WIDTH - TOAST_PADDING * 2,
-            ).pack(padx=TOAST_PADDING, pady=20)
+                font=("Yu Gothic UI", 10),
+            ).pack(fill="x", padx=TOAST_PADDING, pady=(8, 16))
         else:
             self._app_buttons = []
-            # アプリボタンの一覧
-            for i, app in enumerate(self._apps):
-                btn = ctk.CTkButton(
-                    main_frame,
-                    text=f"  {i+1}: {app['name']}",
-                    font=ctk.CTkFont(size=14),
-                    height=TOAST_BUTTON_HEIGHT,
-                    anchor="w",
-                    command=lambda idx=i: self._launch_app(idx),
-                )
-                btn.pack(
-                    fill="x",
-                    padx=TOAST_PADDING,
-                    pady=(2, 2),
-                )
-                self._app_buttons.append(btn)
-            
-            # デフォルトで最初の項目を選択状態にする
             self._selected_index = 0
+            for i, app in enumerate(self._apps):
+                btn = tk.Button(
+                    main_frame,
+                    text=f"{i + 1}. {app['name']}",
+                    anchor="w",
+                    relief="flat",
+                    bd=0,
+                    activebackground=self.SELECTED_BG,
+                    activeforeground=self.SELECTED_FG,
+                    bg=self.NORMAL_BG,
+                    fg=self.NORMAL_FG,
+                    highlightthickness=0,
+                    padx=12,
+                    pady=8,
+                    font=("Yu Gothic UI", 11),
+                    command=lambda idx=i: self._launch_app(idx),
+                    takefocus=False,
+                )
+                btn.pack(fill="x", padx=TOAST_PADDING, pady=1)
+                self._app_buttons.append(btn)
             self._update_button_selection()
 
-        # フッター: タイマー表示
-        self._timer_label = ctk.CTkLabel(
+        self._timer_label = tk.Label(
             main_frame,
             text="",
-            font=ctk.CTkFont(size=10),
-            text_color="gray50",
+            bg=self.NORMAL_BG,
+            fg=self.MUTED_FG,
+            font=("Yu Gothic UI", 9),
+            anchor="w",
+            justify="left",
         )
-        self._timer_label.pack(pady=(8, TOAST_PADDING))
+        self._timer_label.pack(fill="x", padx=TOAST_PADDING, pady=(8, TOAST_PADDING))
 
-        # ウィンドウサイズの事前計算（update_idletasks を待たずに配置するため）
         num_buttons = max(len(self._apps), 1)
         self._calculated_height = (
-            TOAST_PADDING * 2    # 上下パディング
-            + 55                 # ヘッダー
-            + num_buttons * (TOAST_BUTTON_HEIGHT + 4)  # ボタン群
-            + 40                 # フッター
+            TOAST_PADDING * 2
+            + 52
+            + num_buttons * (TOAST_BUTTON_HEIGHT - 10)
+            + 42
         )
         self._calculated_height = max(self._calculated_height, TOAST_MIN_HEIGHT)
         self.geometry(f"{TOAST_WIDTH}x{self._calculated_height}")
@@ -193,32 +202,42 @@ class LauncherWindow(ctk.CTk):
         """ボタンの選択状態（見た目）を更新する。"""
         if not hasattr(self, "_app_buttons"):
             return
-            
+
         for i, btn in enumerate(self._app_buttons):
             if i == self._selected_index:
-                # 選択中のボタンを目立たせる（ホバー色に近い色にする）
-                btn.configure(border_width=2, border_color=["#3B8ED0", "#1F6AA5"])
+                btn.configure(bg=self.SELECTED_BG, fg=self.SELECTED_FG)
             else:
-                btn.configure(border_width=0)
+                btn.configure(bg=self.NORMAL_BG, fg=self.NORMAL_FG)
 
     def _on_key_up(self, event):
-        if not self._apps: return
+        if not self._apps:
+            return "break"
         self._selected_index = (self._selected_index - 1) % len(self._apps)
         self._update_button_selection()
+        return "break"
 
     def _on_key_down(self, event):
-        if not self._apps: return
+        if not self._apps:
+            return "break"
         self._selected_index = (self._selected_index + 1) % len(self._apps)
         self._update_button_selection()
+        return "break"
 
     def _on_key_enter(self, event):
         if 0 <= self._selected_index < len(self._apps):
             self._launch_app(self._selected_index)
+        return "break"
+
+    def _on_key_space(self, event):
+        if 0 <= self._selected_index < len(self._apps):
+            self._launch_app(self._selected_index)
+        return "break"
 
     def _on_key_tab(self, event, reverse=False):
         """Tabキーによる項目移動。"""
-        if not self._apps: return
-        
+        if not self._apps:
+            return "break"
+
         step = -1 if reverse else 1
         self._selected_index = (self._selected_index + step) % len(self._apps)
         self._update_button_selection()
@@ -254,7 +273,6 @@ class LauncherWindow(ctk.CTk):
 
         if not os.path.exists(app_path):
             # アプリが見つからない場合のフォールバック
-            from tkinter import messagebox
             messagebox.showerror(
                 APP_NAME,
                 f"アプリが見つかりません:\n{app_path}"
@@ -279,7 +297,6 @@ class LauncherWindow(ctk.CTk):
                 creationflags=creation_flags
             )
         except Exception as e:
-            from tkinter import messagebox
             messagebox.showerror(
                 APP_NAME,
                 f"アプリの起動に失敗しました:\n{e}"
@@ -310,7 +327,7 @@ class LauncherWindow(ctk.CTk):
         """タイマーの残り時間を表示する。"""
         if self.winfo_exists():
             self._timer_label.configure(
-                text=f"⏱  {self._remaining}秒後に自動的に閉じます"
+                text=f"{self._remaining}秒後に自動で閉じます"
             )
 
     def _close(self, event=None, check_focus=False):
