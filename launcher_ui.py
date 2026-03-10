@@ -76,6 +76,8 @@ class LauncherWindow(ctk.CTk):
         self.focus_force()
         
         # Windows APIを使用してさらに強力にフォーカスを奪う
+        # main.py で AUMID を PID ごとにユニークにしているため、
+        # SetForegroundWindow を呼んでも別デスクトップの既存インスタンスに引き寄せられない。
         try:
             import ctypes
             hwnd = ctypes.windll.user32.GetParent(self.winfo_id())

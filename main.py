@@ -85,8 +85,10 @@ def _main_logic():
     args = sys.argv[1:]
 
     if args:
-        # ランチャーモード
-        set_aumid(AUMID_LAUNCHER)
+        # ランチャーモード: AUMIDにPIDを付与して完全にユニークにする。
+        # これにより、Windows 11 の仮想デスクトップでの「同一アプリの引き寄せ」を防ぐ。
+        unique_aumid = f"{AUMID_LAUNCHER}.PID.{os.getpid()}"
+        set_aumid(unique_aumid)
         # 引数を結合し、前後にある引用符を確実に削除。
         # Windowsの関連付けから渡されるパスを正しく扱う。
         file_path = " ".join(args).strip().strip('"')
