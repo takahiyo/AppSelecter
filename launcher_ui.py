@@ -64,14 +64,17 @@ class LauncherWindow(tk.Tk):
 
         # 初期化中にFocusOutが発火して自爆するのを防ぐフラグ
         self._ready_to_close = False
-        # [BEFORE] ガード時間が短すぎて起動直後に自爆していた (100ms)
-        # [AFTER] 安定のためガード時間を 500ms に戻す（起動速度には影響なし）
-        self.after(500, self._enable_close)
+        self._once_focused = False # 一度でもフォーカスを得たか
+        
+        # [BEFORE] 以前のガード (500ms)
+        # [AFTER] 1000ms の猶予を与え、かつ一度もフォーカスを得ていない場合は閉じないようにする
+        self.after(1000, self._enable_close)
 
-        # フォーカスが外れたら閉じる
+        # フォーカスが外れたら閉じる (FocusIn でフラグを立ててから有効にする)
+        self.bind("<FocusIn>", self._on_focus_in)
         self.bind("<FocusOut>", lambda e: self._close(check_focus=True))
         # Escで閉じる
-        self.bind("<Escape>", lambda e: self._close())
+        self.bind("<Escape>", lambda e: self._close(reason="Escape Key"))
 
         # キーボード操作対応
         self.bind("<Up>", self._on_key_up)
@@ -112,6 +115,10 @@ class LauncherWindow(tk.Tk):
 
     def _enable_close(self):
         self._ready_to_close = True
+
+    def _on_focus_in(self, event):
+        """フォーカスを得た際の処理"""
+        self._once_focused = True
 
     def _build_ui(self):
         """軽量なTkウィジェットだけでUIを構築する。"""
@@ -314,7 +321,7 @@ class LauncherWindow(tk.Tk):
             return
 
         if self._remaining <= 0:
-            self._close()
+            self._close(reason="Timer Expired")
             return
 
         self._remaining -= 1
@@ -328,16 +335,25 @@ class LauncherWindow(tk.Tk):
                 text=f"{self._remaining}秒後に自動で閉じます"
             )
 
-    def _close(self, event=None, check_focus=False):
+    def _close(self, event=None, check_focus=False, reason="Unknown"):
         """ウィンドウを閉じてアプリケーションを終了する。"""
-        # FocusOut などの場合、起動直後は閉じないようにする
+        # FocusOut などの場合、起動直後または一度もフォーカスを得ていない場合は閉じない
         if check_focus:
+            # ガード期間中か
             if not getattr(self, "_ready_to_close", True):
                 return
-            # 真にフォーカスを失ったか念のため再確認
-            # (サブウィジェット間でのフォーカス移動などによる誤爆防止)
+            # 一度もフォーカスを得ていないか（OSの初期化中イベントの誤爆防止）
+            if not getattr(self, "_once_focused", False):
+                return
+            # 真にフォーカスを失ったか念のため再確認 (サブウィジェット間移動の防止)
             if self.focus_get() is not None:
                 return
+            reason = "Focus Lost"
+
+        # 終了理由をログ出力（デバッグ用）
+        print(f"[Launcher] Closing UI. Reason: {reason}")
+            
+        # タイマーを確実に止める
         if self._timer_id:
             try:
                 self.after_cancel(self._timer_id)
