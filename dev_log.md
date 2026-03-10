@@ -50,3 +50,106 @@
 ## 結論
 
 ユーザー様ご自身による「120msの遅延判定」という鋭い洞察により、長らくの懸案であった即死問題に終止符が打たれた。軽量化、高速化、安定性のすべてを兼ね備えた、究極のアプリセレクターがここに完成した。
+
+---
+
+## 記録日時: 2026-03-10（デバッグセッション）
+
+### 問題: 拡張子紐づけ起動時にウィンドウが一瞬で閉じる
+
+**発生条件**: Windows のレジストリ関連付けを通じてファイルをダブルクリックした際のみ発生。`AppSelecter.exe` を直接起動 → 正常動作、引数付き起動 → 即死。
+
+---
+
+### 過去の修正試行（修正1〜5 + fix commit = 計6回失敗）
+
+| 試行 | 内容 | 結果 |
+|------|------|------|
+| 修正3 (e35cef8) | 不明（コミットメッセージのみ） | ❌ 解消せず |
+| 修正4 (026f18b) | 不明 | ❌ 解消せず |
+| 修正5 (5f03aae) | 不明 | ❌ 解消せず |
+| fix(launcher) (4cc8c20) | transient focus loss 回避 | ❌ 解消せず |
+
+**共通の失敗原因**: 症状（FocusOut → 閉じる）だけに対処し、根本原因を分析できていなかった。
+
+---
+
+### 根本原因分析 (Root Cause Analysis)
+
+**原因 1 (致命的): ランチャーモードでログ出力がゼロ**
+- `main.py` でランチャーモード（引数あり）の場合、`setup_logging()` が呼ばれていない。
+- `.spec` ファイルの `console=False` により stdout/stderr はどこにも出力されない。
+- 結果: エラーが起きても何の手がかりも得られず、6回のブラインド修正に。
+
+**原因 2 (主原因): `_once_focused` ガードの設計欠陥**
+- 旧コード: `_once_focused=True` かつ `focus_get()=None` → 即クローズ
+- 拡張子紐づけ起動時の実際の挙動:
+  1. Windows Shell (Explorer) が `AppSelecter.exe "%1"` を実行
+  2. Explorer は起動後すぐにフォーカスを自分に戻す
+  3. AppSelecter の `FocusIn` が一瞬発火 → `_once_focused = True`
+  4. 直後に Explorer へフォーカスが戻る → `FocusOut` 発火
+  5. `_ready_to_close=True` (1000ms ガードは既に経過) → **即クローズ**
+- 直接起動ではこの Explorer による「フォーカスの引き戻し」がないため問題が出ない。
+
+**原因 3: `_force_focus` 内のWin32 API呼び出しバグ**
+- `GetForegroundWindow()` で取得した hwnd を `self.winfo_id()` で即上書き → 無意味なコード
+- フォーカス取得が不安定になる一因。
+
+**原因 4: `update()` の副作用**
+- `self.update()` は全イベントを処理するため、FocusIn/FocusOut が意図せず処理される。
+- `update_idletasks()` に変更すべき。
+
+---
+
+### 修正内容
+
+#### 1. デバッグログシステムの刷新 (`main.py`)
+- `setup_debug_logger()` 関数を新設。Python `logging` モジュールを使用。
+- ランチャーモードでも `AppSelecter_Debug.log` にミリ秒精度のタイムスタンプ付きログを出力。
+- stdout リダイレクトはしない（速度影響なし）。
+- ロガーを `show_launcher()` → `LauncherWindow` へ DI で渡す設計。
+
+#### 2. フォーカス管理の抜本的再設計 (`launcher_ui.py`)
+
+| 項目 | 旧 | 新 |
+|------|-----|-----|
+| ガード判定 | `_once_focused` (bool) | `_focus_in_count` (int) + `_user_interacted` (bool) |
+| ガード時間 | 1000ms | 1500ms (`_FOCUS_GUARD_MS`) |
+| FocusOut後の待機 | 120ms | 200ms (`_FOCUS_RECHECK_MS`) |
+| フォーカス再取得 | なし | `_check_focus_and_close()` でフォーカス未対話＆FocusIn < 2 なら再取得を試行 |
+| 二重クローズ防止 | なし | `_closed` フラグで保護 |
+| update() | `self.update()` | `self.update_idletasks()` |
+| SetForegroundWindow | バグあり（hwnd上書き） | 正しく `winfo_id()` を使用 |
+| ユーザー操作記録 | なし | キー操作/クリックで `_user_interacted = True` |
+
+**核心ロジック** (`_check_focus_and_close`):
+```
+FocusOut 発生
+  → 200ms 待機
+  → フォーカスが戻っていたら何もしない
+  → ユーザー未対話 かつ FocusIn < 2 → フォーカス再取得を試行（閉じない）
+  → それ以外 → クローズ
+```
+
+これにより「Explorer によるフォーカス引き戻し」を安全に乗り越える。
+
+#### 3. `_force_focus` のWin32 APIバグ修正
+- `GetForegroundWindow()` の不要な呼び出しを削除。
+- `self.winfo_id()` で取得したハンドルのみ使用。
+- 試行回数を 8→12 に増加、間隔を 50ms→60ms に調整。
+
+#### 4. `_close` メソッドの堅牢化
+- `check_focus` 引数を廃止（FocusOut処理は `_check_focus_and_close` に統一）。
+- `_closed` フラグで二重クローズを完全防止。
+- クローズ時に `age_ms`, `focus_in_count`, `user_interacted` をログ出力。
+
+---
+
+### 検証ポイント（ユーザー実機確認用）
+
+- [ ] `.txt` ファイルをダブルクリック → ランチャーが表示され、一瞬で閉じない
+- [ ] 表示中にタイマーが正しくカウントダウンする
+- [ ] アプリを選択して起動できる
+- [ ] `AppSelecter_Debug.log` にフォーカスイベントの詳細が記録されている
+- [ ] 直接起動（設定画面）が引き続き正常動作する
+- [ ] 仮想デスクトップ跨ぎの動作に影響がない
