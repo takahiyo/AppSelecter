@@ -1,0 +1,5 @@
+
+--- AppSelecter Launched at 2026-03-10 17:32:36.069169 ---
+sys.argv: ['E:\\Local_Storage\\GitHub\\AppSelecter\\AppSelecter\\dist\\AppSelecter\\AppSelecter.exe', 'test.txt']
+Resolved file_path: test.txt
+Starting launcher_ui
