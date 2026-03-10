@@ -32,8 +32,8 @@ def setup_logging():
     except Exception:
         pass
 
-# 起動直後にロギング設定を開始
-setup_logging()
+# 以前はここで setup_logging() を呼んでいたが、起動高速化のため
+# 各モードの分岐先で必要に応じて呼ぶように変更
 
 # [BEFORE] 
 # from launcher_ui import show_launcher
@@ -99,15 +99,11 @@ def _main_logic():
         
         print(f"Resolved file_path: {file_path}")
         
-        if not os.path.exists(file_path):
-            print("Error: File does not exist")
-            import tkinter.messagebox as messagebox
-            import tkinter as tk
-            root = tk.Tk()
-            root.withdraw()
-            messagebox.showerror(APP_NAME, f"ファイルが見つかりません:\n{file_path}")
-            return
-            
+        print(f"Resolved file_path: {file_path}")
+        
+        # [BEFORE] 以前はここで os.path.exists チェックを行っていたが、
+        # ディスクI/Oによる僅かな遅延を避けるため launcher_ui 側へ寄せる
+        
         print("Starting launcher_ui")
         # [BEFORE]
         # show_launcher(file_path)
@@ -117,6 +113,7 @@ def _main_logic():
         show_launcher(file_path)
     else:
         # 設定画面モード
+        setup_logging()  # 設定画面は速度優先ではないためログを有効化
         set_aumid(AUMID_SETTINGS)
         mutex_name = f"Global\\{APP_NAME}_Settings_Mutex"
         if is_already_running(mutex_name):

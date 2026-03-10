@@ -36,6 +36,11 @@ class LauncherWindow(ctk.CTk):
         self._remaining = self._timer_sec
         self._timer_id = None
 
+        # 起動高速化のため main.py から移動してきたファイルチェック
+        if not os.path.exists(self._file_path):
+            self._show_error_and_exit(f"ファイルが見つかりません:\n{self._file_path}")
+            return
+
         # テーマ設定
         ctk.set_appearance_mode(UI_THEME)
         ctk.set_default_color_theme(UI_COLOR_THEME)
@@ -58,8 +63,8 @@ class LauncherWindow(ctk.CTk):
         # [BEFORE]
         # self.after(500, self._enable_close)
         # [AFTER]
-        # ガード時間を短縮して応答性を向上 (500ms -> 200ms)
-        self.after(200, self._enable_close)
+        # ガード時間をさらに短縮 (200ms -> 100ms)
+        self.after(100, self._enable_close)
 
         # フォーカスが外れたら閉じる
         self.bind("<FocusOut>", lambda e: self._close(check_focus=True))
@@ -75,22 +80,32 @@ class LauncherWindow(ctk.CTk):
         for i in range(1, 10):
             self.bind(str(i), lambda e, idx=i-1: self._launch_app(idx) if idx < len(self._apps) else None)
 
-    def _force_focus(self):
-        """ウィンドウを強制的にフォアグラウンドに持ってくる"""
+    def _force_focus(self, count=0):
+        """ウィンドウを強制的にフォアグラウンドに持ってくる（複数回試行）"""
         self.lift()
         self.attributes("-topmost", True)
         self.focus_force()
         
-        # Windows APIを使用してさらに強力にフォーカスを奪う
-        # main.py で AUMID を PID ごとにユニークにしているため、
-        # SetForegroundWindow を呼んでも別デスクトップの既存インスタンスに引き寄せられない。
         try:
             import ctypes
-            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
-            # 他のスレッドの入力を自分にアタッチさせる（フォアグラウンド強制の常套手段）
+            # GetParent ではなく自身または適切な親の HWND を取得
+            hwnd = ctypes.windll.user32.GetForegroundWindow() # ダミー呼び出しでキャッシュ
+            hwnd = self.winfo_id()
+            # Windows APIを使用してフォアグラウンドを要求
             ctypes.windll.user32.SetForegroundWindow(hwnd)
         except Exception:
             pass
+
+        # 関連付け起動時はExplorerにフォーカスを奪われやすいため、数回繰り返す
+        if count < 5:
+            self.after(100, lambda: self._force_focus(count + 1))
+
+    def _show_error_and_exit(self, message):
+        """エラーを表示して終了する"""
+        from tkinter import messagebox
+        messagebox.showerror(APP_NAME, message)
+        self.destroy()
+        sys.exit(1)
 
     def _enable_close(self):
         self._ready_to_close = True
